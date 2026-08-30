@@ -1,0 +1,50 @@
+# Derived from SpecterOps BloodHound CE docker-compose.yml (Apache-2.0).
+# Only the BloodHound UI is bound to the host, and only on loopback.
+services:
+  app-db:
+    image: docker.io/library/postgres:18
+    environment:
+      - PGUSER=bloodhound
+      - POSTGRES_USER=bloodhound
+      - POSTGRES_PASSWORD=bloodhoundcommunityedition
+      - POSTGRES_DB=bloodhound
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bloodhound -d bloodhound -h 127.0.0.1 -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  graph-db:
+    image: docker.io/library/neo4j:4.4.42
+    environment:
+      - NEO4J_AUTH=neo4j/bloodhoundcommunityedition
+      - NEO4J_dbms_allow__upgrade=true
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  bloodhound:
+    image: docker.io/specterops/bloodhound:latest
+    environment:
+      - bhe_database_connection=user=bloodhound password=bloodhoundcommunityedition dbname=bloodhound host=app-db
+      - bhe_neo4j_connection=neo4j://neo4j:bloodhoundcommunityedition@graph-db:7687/
+      - bhe_graph_driver=neo4j
+    ports:
+      - 127.0.0.1:8080:8080
+    depends_on:
+      app-db:
+        condition: service_healthy
+      graph-db:
+        condition: service_healthy
+
+volumes:
+  neo4j-data:
+  postgres-data:
